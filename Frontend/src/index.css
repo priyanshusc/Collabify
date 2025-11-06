@@ -1,0 +1,68 @@
+/* Frontend/src/index.css */
+
+/* 1. Import Tailwind's base styles and the typography plugin */
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* 2. Define the styles for your Tiptap editor here */
+/* 👉 We've moved the .ProseMirror styles from Tiptap.css to this file */
+.ProseMirror {
+  @apply prose prose-invert max-w-none rounded-md;
+  
+  padding-left: 1rem;
+  background-color: #1f2937; /* bg-gray-800 */
+  color: #d1d5db; /* text-gray-300 */
+  height: 100%;
+}
+
+/* Style headings, paragraphs, lists etc. inside the editor */
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  color: white;
+  margin-bottom: 0em;
+  margin-top: 0em;
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* Placeholder styling */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #6b7280;
+  pointer-events: none;
+  height: 0;
+}
+
+@keyframes dropdownOpen {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes dropdownClose {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.animate-dropdownOpen {
+  animation: dropdownOpen 0.15s ease-out forwards;
+}
+
+.animate-dropdownClose {
+  animation: dropdownClose 0.15s ease-in forwards;
+}
