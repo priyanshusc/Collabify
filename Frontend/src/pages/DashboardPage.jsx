@@ -19,6 +19,7 @@ import { MdDeleteForever } from "react-icons/md";
 // eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from "framer-motion";
 import Toast from '../components/Toast';
+import ShareNoteModal from '../components/ShareNoteModal';
 
 const DashboardPage = () => {
   const { isSidebarOpen } = useOutletContext();
@@ -60,6 +61,11 @@ const DashboardPage = () => {
     hideTimer: null,
   });
 
+  const [shareModalState, setShareModalState] = useState({
+    isOpen: false,
+    noteId: null,
+  });
+
   const handleCloseToast = () => {
     if (toast.hideTimer) {
       clearTimeout(toast.hideTimer);
@@ -77,9 +83,9 @@ const DashboardPage = () => {
 
     // 2. Stop the "hide" timer
     clearTimeout(hideTimer);
-
-    // 3. Optimistic UI: Put the note back in the list
-    setNotes(prevNotes => [noteToRestore, ...prevNotes]);
+    
+    // 3. 🚨 REMOVE THIS LINE 🚨 (This was the problem)
+    // setNotes(prevNotes => [noteToRestore, ...prevNotes]);
 
     // 4. Hide the toast immediately
     setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
@@ -89,21 +95,24 @@ const DashboardPage = () => {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
 
       if (undoType === 'archive') {
-        // Logic from old handleUndoArchive
         await axios.put(`http://localhost:3001/api/notes/${noteToRestore._id}`, {
           isArchived: noteToRestore.isArchived // Reverts to its original state
         }, config);
       } else if (undoType === 'bin') {
-        // Logic to un-bin the note
         await axios.put(`http://localhost:3001/api/notes/${noteToRestore._id}`, {
           isBinned: false // Restore it
         }, config);
       }
+      
+      // 💡 6. ADD THIS LINE: Fetch notes *after* API call succeeds
+      fetchNotes(); 
+
     } catch (error) {
       console.error(`Failed to undo ${undoType}`, error);
-      fetchNotes(); // Refetch if the reversal fails
+      fetchNotes(); // Also refetch if the reversal fails
     }
   };
+  
   const filteredNotes = view === 'notes' || view === 'archive'
     ? notes
     : notes.filter(note => note.labels.includes(view));
@@ -153,38 +162,51 @@ const DashboardPage = () => {
   const handleMoveToBin = async (note) => {
     if (!note) return;
 
-    // 1. Optimistic UI: Remove note from view
+    // 1. Optimistic UI
     setNotes(notes.filter(n => n._id !== note._id));
     handleCloseMenu();
 
-    // 2. Clear any previous "hide" timer
     if (toast.hideTimer) {
       clearTimeout(toast.hideTimer);
     }
 
-    // 3. Fire API call
+    // 2. Fire API call
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isBinned: true }, config);
+      
+      // 3. Set timer to HIDE toast
+      const timerId = setTimeout(() => {
+        setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
+      }, 5000);
+  
+      // 4. Show the toast
+      setToast({
+        isVisible: true,
+        message: 'Note moved to bin',
+        undoData: note, 
+        hideTimer: timerId,
+        undoType: 'bin'
+      });
+
     } catch (error) {
       console.error('Failed to move to bin', error);
       fetchNotes(); // Revert on error
+      
+      // 👇 ADD THIS TO SHOW THE ERROR (e.g., "Only the owner can move this note")
+      const errorMsg = error.response?.data?.message || 'Failed to move to bin';
+      const timerId = setTimeout(() => {
+        setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
+      }, 3000);
+      setToast({
+        isVisible: true,
+        message: errorMsg,
+        undoData: null,
+        hideTimer: timerId,
+        undoType: null
+      });
       return;
     }
-
-    // 4. Set a timer to HIDE the toast
-    const timerId = setTimeout(() => {
-      setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
-    }, 5000);
-
-    // 5. Show the toast
-    setToast({
-      isVisible: true,
-      message: 'Note moved to bin',
-      undoData: note, // Store the original note to allow undo
-      hideTimer: timerId,
-      undoType: 'bin' // <-- Set the type!
-    });
   };
 
   const handleRestoreNote = async (note) => {
@@ -218,19 +240,17 @@ const DashboardPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth, view]);
 
-  const handleShareNote = async (event, noteId) => {
-    event.stopPropagation(); // Stop the note modal from opening
-
-    const email = prompt("Enter the email of the user you want to share this note with:");
-    if (!email) {
-      return; // User cancelled
+  const handleConfirmShare = async (email) => {
+    const noteId = shareModalState.noteId; // Get noteId from state
+    if (!email || !noteId) {
+      return; // Safety check
     }
 
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       const { data } = await axios.post(`http://localhost:3001/api/notes/${noteId}/share`, { email }, config);
 
-      // Simple success toast (using your existing toast state)
+      // ... (your existing toast logic for success)
       const timerId = setTimeout(() => {
         setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
       }, 3000);
@@ -244,7 +264,7 @@ const DashboardPage = () => {
 
     } catch (error) {
       console.error('Failed to share note', error);
-      // Error toast
+      // ... (your existing toast logic for error)
       const errorMsg = error.response?.data?.message || 'Failed to share note';
       const timerId = setTimeout(() => {
         setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
@@ -256,7 +276,16 @@ const DashboardPage = () => {
         hideTimer: timerId,
         undoType: null
       });
+    } finally {
+      // Close the modal regardless of success or error
+      setShareModalState({ isOpen: false, noteId: null });
     }
+  };
+
+  //  4. CREATE A NEW FUNCTION TO OPEN THE MODAL
+  const handleOpenShareModal = (event, noteId) => {
+    event.stopPropagation(); // Stop the note modal from opening
+    setShareModalState({ isOpen: true, noteId: noteId });
   };
 
   const handleOpenLabelModal = (note) => {
@@ -680,7 +709,7 @@ const DashboardPage = () => {
                           <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                             <LuPalette />
                           </button>
-                          <button onClick={(e) => handleShareNote(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
+                          <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                             <TbUsersPlus />
                           </button>
                           <button
@@ -752,7 +781,7 @@ const DashboardPage = () => {
                               <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                                 <LuPalette />
                               </button>
-                              <button onClick={(e) => handleShareNote(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
+                              <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                                 <TbUsersPlus />
                               </button>
                               <button
@@ -830,7 +859,7 @@ const DashboardPage = () => {
                       <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                         <LuPalette />
                       </button>
-                      <button onClick={(e) => handleShareNote(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
+                      <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
                         <TbUsersPlus />
                       </button>
                       <button
@@ -868,7 +897,7 @@ const DashboardPage = () => {
                     <p className="text-gray-400 mt-2 mb-6">Start capturing your ideas beautifully 💡</p>
                     <button
                       onClick={handleCreateNote}
-                      className="text-gray-500 font-bold py-2 px-5 text-2xl hover:text-gray-400 cursor-pointer"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-7 rounded-lg shadow-md transition duration-300 text-xl cursor-pointer"
                     >
                       <span>Create Note</span>
                     </button>
@@ -936,6 +965,12 @@ const DashboardPage = () => {
             existingLabels={labelModalState.note.labels}
             onClose={handleCloseLabelModal}
             onSave={handleSaveLabels}
+          />
+        )}
+        {shareModalState.isOpen && (
+          <ShareNoteModal
+            onClose={() => setShareModalState({ isOpen: false, noteId: null })}
+            onShare={handleConfirmShare}
           />
         )}
       </AnimatePresence>

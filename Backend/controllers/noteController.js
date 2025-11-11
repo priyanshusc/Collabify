@@ -1,6 +1,7 @@
 // Backend/controllers/noteController.js
 const User = require('../models/user');
 const Note = require('../models/note');
+const NoteMeta = require('../models/noteMeta')
 
 // @desc    Get all notes for a user (now with search)
 // @route   GET /api/notes
@@ -12,78 +13,123 @@ const Note = require('../models/note');
 // @route   GET /api/notes
 // @access  Private
 const getNotes = async (req, res) => {
-    const baseQuery = {
-        $or: [
-            { owner: req.user._id },
-            { collaborators: req.user._id }
-        ]
-    };
+    // 1. Build the filter for NoteMeta
+    const metaQuery = { user: req.user._id };
 
-    // --- THIS IS THE NEW LOGIC ---
-    // 1. Check if we are in the Bin view
     if (req.query.bin === 'true') {
-        baseQuery.isBinned = true;
+        metaQuery.isBinned = true;
     } else {
-        // 2. If NOT in bin, hide all binned items from all other views
-        baseQuery.isBinned = { $ne: true };
+        metaQuery.isBinned = { $ne: true };
     }
 
-    // 3. Apply other filters (this logic is from our previous fix)
     if (req.query.archived) {
-        baseQuery.isArchived = req.query.archived === 'true';
+        metaQuery.isArchived = req.query.archived === 'true';
     } else if (req.query.favorited) {
-        baseQuery.isFavorited = req.query.favorited === 'true';
+        metaQuery.isFavorited = req.query.favorited === 'true';
+    } else if (req.query.bin !== 'true') {
+        metaQuery.isArchived = { $ne: true };
     }
 
-    const searchFilter = req.query.search
-        ? {
-            $or: [
-                { title: { $regex: req.query.search, $options: 'i' } },
-                { content: { $regex: req.query.search, $options: 'i' } },
-            ],
-        }
-        : {};
+    // 2. Build the filter for Note (for search)
+    const noteQuery = {};
+    if (req.query.search) {
+        // 👇 UPDATED: Search fields are now top-level
+        noteQuery.$or = [
+            { 'title': { $regex: req.query.search, $options: 'i' } },
+            { 'content': { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
 
-    const finalQuery = { ...baseQuery, ...searchFilter };
-
-    const notes = await Note.find(finalQuery).sort({ updatedAt: -1 });
-    res.json(notes);
+    // 3. Use an aggregation pipeline to join NoteMeta and Note
+    try {
+        const notes = await NoteMeta.aggregate([
+            { $match: metaQuery }, // Filter by user and user's state
+            {
+                $lookup: { // Join with the 'notes' collection
+                    from: 'notes', 
+                    localField: 'note',
+                    foreignField: '_id',
+                    as: 'noteDetails'
+                }
+            },
+            { $unwind: '$noteDetails' }, // Deconstruct the array from lookup
+            
+            // 👇 THIS IS THE KEY FIX
+            {
+                $project: {
+                    _id: '$noteDetails._id', // Use the NOTE's ID
+                    title: '$noteDetails.title',
+                    content: '$noteDetails.content',
+                    color: '$noteDetails.color',
+                    labels: '$noteDetails.labels',
+                    createdAt: '$noteDetails.createdAt',
+                    updatedAt: '$noteDetails.updatedAt',
+                    
+                    // Add the per-user fields from the metadata (NoteMeta)
+                    isArchived: '$isArchived',
+                    isFavorited: '$isFavorited',
+                    isBinned: '$isBinned',
+                    role: '$role'
+                }
+            },
+            { $match: noteQuery }, // Apply search *after* projecting
+            { $sort: { 'updatedAt': -1 } }
+        ]);
+        
+        res.json(notes);
+    } catch (error) {
+        console.error("Error fetching notes:", error);
+        res.status(500).json({ message: "Error fetching notes" });
+    }
 };
 
 // @desc    Create a new note
 // @route   POST /api/notes
 // @access  Private
 const createNote = async (req, res) => {
-    // ... (existing createNote function)
-    const note = new Note({
-        owner: req.user._id,
-    });
-    const createdNote = await note.save();
-    res.status(201).json(createdNote);
+    try {
+        const note = new Note({});
+        const createdNote = await note.save();
+
+        const meta = new NoteMeta({
+            note: createdNote._id,
+            user: req.user._id,
+            role: 'owner'
+        });
+        await meta.save();
+        
+        res.status(201).json(createdNote);
+    } catch (error) {
+        console.error("Error creating note:", error);
+        res.status(500).json({ message: "Error creating note" });
+    }
 };
 
 // @desc    Delete a note
 // @route   DELETE /api/notes/:id
 // @access  Private
 const deleteNote = async (req, res) => {
-    const note = await Note.findById(req.params.id);
+    const noteId = req.params.id;
+    const userId = req.user._id;
 
-    // 1. Check if the note exists
-    if (!note) {
-        return res.status(404).json({ message: 'Note not found' });
+    try {
+        const noteMeta = await NoteMeta.findOne({ note: noteId, user: userId });
+
+        if (!noteMeta) {
+            return res.status(404).json({ message: 'Note not found' });
+        }
+        if (noteMeta.role !== 'owner') {
+            return res.status(401).json({ message: 'Only the owner can permanently delete this note' });
+        }
+
+        await Note.findByIdAndDelete(noteId);
+        await NoteMeta.deleteMany({ note: noteId });
+
+        res.json({ message: 'Note permanently removed' });
+    } catch (error) {
+        console.error("Error deleting note:", error);
+        res.status(500).json({ message: "Error deleting note" });
     }
-
-    // 2. Check if the logged-in user owns the note
-    const isOwner = note.owner.toString() === req.user._id.toString();
-    const isCollaborator = note.collaborators.some(collabId => collabId.equals(req.user._id));
-
-    if (!isOwner && !isCollaborator) {
-        return res.status(401).json({ message: 'Not authorized' });
-    }
-
-    // 3. If checks pass, delete the note
-    await note.deleteOne();
-    res.json({ message: 'Note removed' });
 };
 
 const copyNote = async (req, res) => {
@@ -92,26 +138,40 @@ const copyNote = async (req, res) => {
     if (!originalNote) {
         return res.status(404).json({ message: 'Note not found' });
     }
-
-    // --- THIS IS THE UPDATED CHECK ---
-    const isOwner = originalNote.owner.toString() === req.user._id.toString();
-    const isCollaborator = originalNote.collaborators.some(collabId => collabId.equals(req.user._id));
-
-    if (!isOwner && !isCollaborator) {
-        return res.status(401).json({ message: 'Not authorized' });
-        T
+    
+    const hasAccess = await NoteMeta.findOne({ note: req.params.id, user: req.user._id });
+    if (!hasAccess) {
+        return res.status(401).json({ message: 'Not authorized to copy this note' });
     }
 
     const newNote = new Note({
         title: `[Copy of] ${originalNote.title}`,
         content: originalNote.content,
         color: originalNote.color,
-        owner: req.user._id,
-        labels: originalNote.labels // We'll copy labels too
+        labels: originalNote.labels
     });
-
     const createdNote = await newNote.save();
-    res.status(201).json(createdNote);
+
+    const newMeta = new NoteMeta({
+        note: createdNote._id,
+        user: req.user._id,
+        role: 'owner',
+        isArchived: false, // Set defaults for the new owner
+        isFavorited: false,
+        isBinned: false
+    });
+    await newMeta.save();
+
+    // 👇 THIS IS THE KEY FIX
+    const finalNote = {
+        ...createdNote.toObject(),
+        isArchived: newMeta.isArchived,
+        isFavorited: newMeta.isFavorited,
+        isBinned: newMeta.isBinned,
+        role: newMeta.role
+    };
+    
+    res.status(201).json(finalNote);
 };
 
 // --- NEW FUNCTION: Get a single note by its ID ---
@@ -119,19 +179,32 @@ const copyNote = async (req, res) => {
 // @route   GET /api/notes/:id
 // @access  Private
 const getNoteById = async (req, res) => {
-    const note = await Note.findById(req.params.id);
+    try {
+        const note = await Note.findById(req.params.id);
+        if (!note) {
+            return res.status(404).json({ message: 'Note not found' });
+        }
 
-    if (!note) {
-        return res.status(404).json({ message: 'Note not found' });
+        const noteMeta = await NoteMeta.findOne({ note: req.params.id, user: req.user._id });
+        if (!noteMeta) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        // 👇 THIS IS THE KEY FIX
+        const response = {
+            ...note.toObject(),
+            // Only add the specific fields from meta, keeping the note's _id
+            isArchived: noteMeta.isArchived,
+            isFavorited: noteMeta.isFavorited,
+            isBinned: noteMeta.isBinned,
+            role: noteMeta.role
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error("Error fetching note by ID:", error);
+        res.status(500).json({ message: "Error fetching note" });
     }
-    const isOwner = note.owner.toString() === req.user._id.toString();
-    const isCollaborator = note.collaborators.some(collabId => collabId.equals(req.user._id));
-
-    if (!isOwner && !isCollaborator) {
-        return res.status(401).json({ message: 'Not authorized' });
-    }
-
-    res.json(note);
 };
 
 
@@ -140,30 +213,76 @@ const getNoteById = async (req, res) => {
 // @route   PUT /api/notes/:id
 // @access  Private
 const updateNote = async (req, res) => {
-    // 👉 Destructure 'isArchived' from the request body
     const { title, content, color, labels, isArchived, isFavorited, isBinned } = req.body;
-    const note = await Note.findById(req.params.id);
+    const noteId = req.params.id; // This is the NOTE ID, which is correct
+    const userId = req.user._id;
 
-    if (!note) {
-        return res.status(404).json({ message: 'Note not found' });
+    try {
+        const noteMeta = await NoteMeta.findOne({ note: noteId, user: userId });
+        if (!noteMeta) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        let metaUpdated = false;
+        if (isArchived !== undefined) {
+            noteMeta.isArchived = isArchived;
+            metaUpdated = true;
+        }
+        if (isFavorited !== undefined) {
+            noteMeta.isFavorited = isFavorited;
+            metaUpdated.isFavorited = isFavorited;
+            metaUpdated = true;
+        }
+        if (isBinned !== undefined) {
+            if (isBinned === true && noteMeta.role !== 'owner') {
+                return res.status(401).json({ message: 'Only the owner can move this note to the bin' });
+            }
+            noteMeta.isBinned = isBinned;
+            metaUpdated = true;
+        }
+        
+        if (metaUpdated) {
+            await noteMeta.save();
+        }
+
+        let noteUpdated = false;
+        const note = await Note.findById(noteId);
+        if (title !== undefined) {
+            note.title = title;
+            noteUpdated = true;
+        }
+        if (content !== undefined) {
+            note.content = content;
+            noteUpdated = true;
+        }
+        if (color !== undefined) {
+            note.color = color;
+            noteUpdated = true;
+        }
+        if (labels !== undefined) {
+            note.labels = labels;
+            noteUpdated = true;
+        }
+        
+        if (noteUpdated) {
+            await note.save();
+        }
+
+        // 👇 THIS IS THE KEY FIX
+        const updatedNote = {
+            ...note.toObject(),
+            // Only add the specific fields from meta, keeping the note's _id
+            isArchived: noteMeta.isArchived,
+            isFavorited: noteMeta.isFavorited,
+            isBinned: noteMeta.isBinned,
+            role: noteMeta.role
+        };
+        
+        res.json(updatedNote);
+    } catch (error) {
+        console.error("Error updating note:", error);
+        res.status(500).json({ message: "Error updating note" });
     }
-    const isOwner = note.owner.toString() === req.user._id.toString();
-    const isCollaborator = note.collaborators.some(collabId => collabId.equals(req.user._id));
-
-    if (!isOwner && !isCollaborator) {
-        return res.status(401).json({ message: 'Not authorized' });
-    }
-
-    note.title = title !== undefined ? title : note.title;
-    note.content = content !== undefined ? content : note.content;
-    note.color = color || note.color;
-    note.labels = labels !== undefined ? labels : note.labels;
-    note.isArchived = isArchived !== undefined ? isArchived : note.isArchived;
-    note.isFavorited = isFavorited !== undefined ? isFavorited : note.isFavorited;
-    note.isBinned = isBinned !== undefined ? isBinned : note.isBinned;
-
-    const updatedNote = await note.save();
-    res.json(updatedNote);
 };
 
 // @desc    Add a collaborator to a note
@@ -171,43 +290,45 @@ const updateNote = async (req, res) => {
 // @access  Private (Owner only)
 const shareNote = async (req, res) => {
     const { email } = req.body;
-    const note = await Note.findById(req.params.id);
+    const noteId = req.params.id;
+    const ownerId = req.user._id;
 
-    // 1. Check if note exists
-    if (!note) {
-        return res.status(404).json({ message: 'Note not found' });
+    try {
+        const ownerMeta = await NoteMeta.findOne({ note: noteId, user: ownerId });
+        if (!ownerMeta || ownerMeta.role !== 'owner') {
+            return res.status(401).json({ message: 'Only the owner can share this note' });
+        }
+
+        const userToShareWith = await User.findOne({ email });
+        if (!userToShareWith) {
+            return res.status(404).json({ message: `User with email ${email} not found` });
+        }
+        
+        const existingMeta = await NoteMeta.findOne({ note: noteId, user: userToShareWith._id });
+        if (existingMeta) {
+             return res.status(400).json({ message: 'User is already a member of this note' });
+        }
+
+        const newCollaboratorMeta = new NoteMeta({
+            note: noteId,
+            user: userToShareWith._id,
+            role: 'collaborator'
+        });
+        await newCollaboratorMeta.save();
+
+        res.status(200).json({ message: `Note shared with ${email}` });
+    } catch (error) {
+        console.error("Error sharing note:", error);
+        res.status(500).json({ message: "Error sharing note" });
     }
-
-    // 2. Check if the logged-in user is the OWNER
-    if (note.owner.toString() !== req.user._id.toString()) {
-        return res.status(401).json({ message: 'Only the owner can share this note' });
-    }
-
-    // 3. Find the user to share with
-    const userToShareWith = await User.findOne({ email });
-    if (!userToShareWith) {
-        return res.status(404).json({ message: `User with email ${email} not found` });
-    }
-
-    // 4. Check if they are already the owner or a collaborator
-    if (userToShareWith._id.equals(note.owner) || note.collaborators.some(c => c.equals(userToShareWith._id))) {
-        return res.status(400).json({ message: 'User is already a member of this note' });
-    }
-
-    // 5. Add user and save
-    note.collaborators.push(userToShareWith._id);
-    await note.save();
-
-    res.status(200).json({ message: `Note shared with ${email}` });
 };
 
-// --- EXPORT THE NEW FUNCTIONS ---
 module.exports = {
-    getNotes,
-    createNote,
-    deleteNote,
-    getNoteById,
-    updateNote,
-    copyNote,
-    shareNote // <-- ADD THIS
+    getNotes,
+    createNote,
+    deleteNote,
+    getNoteById,
+    updateNote,
+    copyNote,
+    shareNote
 };
