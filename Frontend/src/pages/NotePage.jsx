@@ -6,6 +6,7 @@ import AuthContext from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TiptapEditor from '../components/TiptapEditor';
 import Toolbar from '../components/Toolbar';
+import { ArrowLeft, CheckCircle2, Clock, AlertCircle, Cloud } from 'lucide-react';
 
 const NotePage = () => {
     const { noteId } = useParams();
@@ -13,7 +14,7 @@ const NotePage = () => {
     const [note, setNote] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [saveStatus, setSaveStatus] = useState('');
-    const [editorInstance, setEditorInstance] = useState(null); 
+    const [editorInstance, setEditorInstance] = useState(null);
 
     const isInitialLoad = useRef(true);
 
@@ -26,7 +27,7 @@ const NotePage = () => {
                 const config = { headers: { Authorization: `Bearer ${auth.token}` } };
                 const { data } = await axios.get(`http://localhost:3001/api/notes/${noteId}`, config);
                 setNote(data);
-                setSaveStatus('Saved'); // Initial status is saved
+                setSaveStatus('Saved');
             } catch (error) {
                 console.error("Failed to fetch note", error);
             } finally {
@@ -42,7 +43,7 @@ const NotePage = () => {
             isInitialLoad.current = false;
             return;
         }
-        if (saveStatus === 'Saved') return; // Don't save if already saved
+        if (saveStatus === 'Saved') return;
 
         const timerId = setTimeout(() => {
             if (note) {
@@ -68,7 +69,7 @@ const NotePage = () => {
     }, [note, noteId, auth.token, saveStatus]);
 
     const handleContentChange = (newContent) => {
-        setSaveStatus(''); // Clear status to indicate unsaved changes
+        setSaveStatus('');
         setNote(prevNote => ({ ...prevNote, content: newContent }));
     };
 
@@ -77,44 +78,93 @@ const NotePage = () => {
         setNote(prevNote => ({ ...prevNote, title: e.target.value }));
     };
 
-    // When user types, clear the 'Saved' status
-    // const handleInputChange = (e) => {
-    //     setSaveStatus(''); // Clear status to indicate unsaved changes
-    //     const { name, value } = e.target;
-    //     setNote(prevNote => ({ ...prevNote, [name]: value }));
-    // };
-
     if (isLoading) {
-        return <div className="bg-gray-900 min-h-screen"><LoadingSpinner /></div>;
+        return (
+            <div className="bg-gray-900 min-h-screen flex items-center justify-center">
+                <LoadingSpinner />
+            </div>
+        );
     }
 
     if (!note) {
-        return <div className="bg-gray-900 text-white text-center py-20">Note not found.</div>;
+        return (
+            <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white">
+                <h2 className="text-2xl font-bold mb-4">Note not found</h2>
+                <Link to="/dashboard" className="text-blue-500 hover:underline">Return to Dashboard</Link>
+            </div>
+        );
     }
 
     return (
-        <div className="bg-gray-900 min-h-screen text-white p-8">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <Link to="/dashboard" className="text-indigo-400 hover:text-indigo-300">&larr; Back to Dashboard</Link>
-                    <span className="text-gray-500 text-sm italic">{saveStatus}</span>
+        <div className="bg-gray-900 min-h-screen text-white flex flex-col relative overflow-hidden">
+            {/* --- Abstract Background Blobs --- */}
+            <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600 rounded-full filter blur-[150px] opacity-10 -translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
+            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-600 rounded-full filter blur-[150px] opacity-10 translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
+
+            {/* --- Header Navigation --- */}
+            <nav className="w-full px-6 py-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md z-30 flex justify-between items-center sticky top-0">
+                <Link 
+                    to="/dashboard" 
+                    className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-white/5"
+                >
+                    <ArrowLeft size={20} />
+                    <span className="font-medium">Back to Dashboard</span>
+                </Link>
+
+                <div className="flex items-center gap-6 text-sm">
+                    <div className={`flex items-center gap-2 font-medium uppercase tracking-wider transition-colors ${
+                        saveStatus === 'Saved' ? 'text-emerald-500' : 
+                        saveStatus === 'Error!' ? 'text-red-500' : 'text-blue-500'
+                    }`}>
+                        {saveStatus === 'Saved' ? <CheckCircle2 size={16} /> : 
+                         saveStatus === 'Error!' ? <AlertCircle size={16} /> : 
+                         <Cloud size={16} />}
+                        {saveStatus || 'Unsaved'}
+                    </div>
+                    <div className="h-4 w-px bg-gray-700 hidden sm:block"></div>
+                    <div className="hidden sm:flex items-center gap-2 text-gray-500">
+                        <Clock size={16} />
+                        <span>
+                            Last edited {new Date(note.updatedAt).toLocaleDateString()} at {new Date(note.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
                 </div>
-                <Toolbar editor={editorInstance} />
-                <input
-                    type="text"
-                    name="title"
-                    value={note.title}
-                    onChange={handleTitleChange}
-                    className="w-full bg-transparent text-4xl font-bold outline-none mb-4 border-b-2 border-gray-700 focus:border-indigo-500 transition"
-                    placeholder="Note Title"
-                />
-                {/* Replace the textarea with the TiptapEditor component */}
-                <TiptapEditor
-                    content={note.content}
-                    onChange={handleContentChange}
-                    onEditorReady={setEditorInstance} // 👉 Get the editor instance from the child
-                />
-            </div>
+            </nav>
+
+            {/* --- Main Editor Area --- */}
+            <main className="flex-1 overflow-y-auto relative z-20 custom-scrollbar">
+                <div className="max-w-5xl mx-auto border-x border-gray-800 min-h-full bg-gray-900/40 flex flex-col shadow-2xl shadow-black/20">
+                    
+                    {/* Title Section */}
+                    <div className="px-12 pt-12 pb-6">
+                        <input
+                            type="text"
+                            name="title"
+                            value={note.title}
+                            onChange={handleTitleChange}
+                            className="w-full bg-transparent text-5xl font-bold text-white placeholder-gray-600 outline-none border-none p-0 focus:ring-0"
+                            placeholder="Untitled Note"
+                        />
+                    </div>
+
+                    {/* Sticky Toolbar within the document container */}
+                    <div className="sticky top-0 z-40 px-12 py-4 bg-gray-900/95 backdrop-blur-xl border-y border-gray-800 transition-all">
+                        <Toolbar editor={editorInstance} />
+                    </div>
+
+                    {/* Editor */}
+                    <div className="px-12 py-8 flex-1">
+                        <TiptapEditor
+                            content={note.content}
+                            onChange={handleContentChange}
+                            onEditorReady={setEditorInstance}
+                        />
+                    </div>
+                    
+                    {/* Bottom Spacer */}
+                    <div className="h-20"></div>
+                </div>
+            </main>
         </div>
     );
 };

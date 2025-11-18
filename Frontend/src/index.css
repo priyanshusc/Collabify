@@ -5,14 +5,14 @@
 @plugin "@tailwindcss/typography";
 
 /* 2. Define the styles for your Tiptap editor here */
-/* 👉 We've moved the .ProseMirror styles from Tiptap.css to this file */
 .ProseMirror {
-  @apply prose prose-invert max-w-none rounded-md;
+  @apply prose prose-invert max-w-none;
   
-  padding-left: 1rem;
-  background-color: #1f2937; /* bg-gray-800 */
+  /* Removed background-color to make it transparent */
+  background-color: transparent; 
   color: #d1d5db; /* text-gray-300 */
   height: 100%;
+  outline: none;
 }
 
 /* Style headings, paragraphs, lists etc. inside the editor */

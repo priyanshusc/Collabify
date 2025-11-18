@@ -21,6 +21,116 @@ import { AnimatePresence, motion } from "framer-motion";
 import Toast from '../components/Toast';
 import ShareNoteModal from '../components/ShareNoteModal';
 
+// ✅ FIX: Define NoteCard OUTSIDE the main component so it doesn't remount on every render
+const NoteCard = ({ 
+  note, 
+  isBin, 
+  menuState, 
+  onSelect, 
+  onRestore, 
+  onDelete, 
+  onPalette, 
+  onShare, 
+  onFavorite, 
+  onArchive, 
+  onMenu 
+}) => (
+  <div
+    key={note._id}
+    style={{ backgroundColor: note.color }}
+    className="group backdrop-blur-sm border border-white/5 p-6 rounded-2xl hover:shadow-xl transition-all duration-300 relative cursor-pointer flex flex-col h-64"
+    onClick={() => !isBin && onSelect(note._id)}
+  >
+    {/* Content Wrapper */}
+    <div className="flex-1 overflow-hidden">
+      <h3 className="font-bold text-xl text-white mb-3 truncate">{note.title}</h3>
+      <div
+        className="text-gray-200 text-sm mb-4 h-[calc(100%-3rem)] overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1 leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: note.content || '<span class="italic opacity-50">No content yet...</span>' }}
+      />
+    </div>
+
+    {/* Labels */}
+    <div className="flex flex-wrap gap-2 mt-2 mb-8">
+      {note.labels.map(label => (
+        <span key={label} className="bg-black/20 backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider text-white/80 px-2 py-1 rounded-md">
+          {label}
+        </span>
+      ))}
+    </div>
+
+    {/* Bin Actions */}
+    {isBin ? (
+      <div className="absolute bottom-4 right-4 flex items-center gap-3">
+        <button
+          onClick={(e) => { e.stopPropagation(); onRestore(note); }}
+          className="p-2 text-gray-300 bg-black/20 hover:bg-black/40 rounded-full transition-all duration-200"
+          title="Restore"
+        >
+          <FaTrashRestoreAlt />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(note._id); }}
+          className="p-2 text-red-400 bg-black/20 hover:bg-red-500/20 rounded-full transition-all duration-200"
+          title="Delete Permanently"
+        >
+          <MdDeleteForever className="text-xl" />
+        </button>
+      </div>
+    ) : (
+      /* Standard Actions (Hover Toolbar) */
+      <>
+        {/* Delete button (Quick Action) */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(note._id); }}
+          className="absolute top-4 right-4 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity z-10 p-1 rounded-md hover:bg-black/10"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+          </svg>
+        </button>
+
+        {/* Toolbar */}
+        <div
+            className={`absolute bottom-4 right-4 flex items-center justify-between transition-all duration-300 ${
+              (menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-0  group-hover:opacity-100'
+            }`}
+          >
+            <div className="flex gap-1">
+             <button onClick={(e) => onPalette(e, note._id)} className="p-2 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition" title="Color">
+              <LuPalette />
+            </button>
+            <button onClick={(e) => onShare(e, note._id)} className="p-2 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition" title="Share">
+              <TbUsersPlus />
+            </button>
+            <button
+              onClick={(e) => onFavorite(e, note)}
+              className="p-2 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition"
+              title="Favorite"
+            >
+              {note.isFavorited ? <IoIosStar className="text-yellow-400" /> : <IoIosStarOutline />}
+            </button>
+            <button
+              onClick={(e) => onArchive(e, note)}
+              className="p-2 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition"
+              title="Archive"
+            >
+              <RiInboxArchiveLine />
+            </button>
+            <button
+              onClick={(e) => onMenu(e, note._id)}
+              className="p-2 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition"
+              title="More"
+            >
+              <BsThreeDotsVertical />
+            </button>
+          </div>
+        </div>
+      </>
+    )}
+  </div>
+);
+
 const DashboardPage = () => {
   const { isSidebarOpen } = useOutletContext();
   const { auth } = useContext(AuthContext);
@@ -70,46 +180,32 @@ const DashboardPage = () => {
     if (toast.hideTimer) {
       clearTimeout(toast.hideTimer);
     }
-    // Make sure to clear all properties
     setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
   };
 
-  // This is the "Undo" function
   const handleUndo = async () => {
-    // 1. Get all data from the toast state
     const { undoData: noteToRestore, hideTimer, undoType } = toast;
-
     if (!noteToRestore || !hideTimer) return;
 
-    // 2. Stop the "hide" timer
     clearTimeout(hideTimer);
-
-    // 3. 🚨 REMOVE THIS LINE 🚨 (This was the problem)
-    // setNotes(prevNotes => [noteToRestore, ...prevNotes]);
-
-    // 4. Hide the toast immediately
     setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
 
-    // 5. Fire the correct REVERSAL API call based on the undoType
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
 
       if (undoType === 'archive') {
         await axios.put(`http://localhost:3001/api/notes/${noteToRestore._id}`, {
-          isArchived: noteToRestore.isArchived // Reverts to its original state
+          isArchived: noteToRestore.isArchived 
         }, config);
       } else if (undoType === 'bin') {
         await axios.put(`http://localhost:3001/api/notes/${noteToRestore._id}`, {
-          isBinned: false // Restore it
+          isBinned: false
         }, config);
       }
-
-      // 💡 6. ADD THIS LINE: Fetch notes *after* API call succeeds
       fetchNotes();
-
     } catch (error) {
       console.error(`Failed to undo ${undoType}`, error);
-      fetchNotes(); // Also refetch if the reversal fails
+      fetchNotes();
     }
   };
 
@@ -127,9 +223,9 @@ const DashboardPage = () => {
       apiUrl += '&archived=false';
     } else if (view === 'archive') {
       apiUrl += '&archived=true';
-    } else if (view === 'favorites') { // 👈 ADD THIS BLOCK
+    } else if (view === 'favorites') { 
       apiUrl += '&favorited=true';
-    } else if (view === 'bin') { // --- ADD THIS BLOCK ---
+    } else if (view === 'bin') {
       apiUrl += '&bin=true';
     }
 
@@ -140,21 +236,18 @@ const DashboardPage = () => {
   };
 
   const handleToggleFavorite = async (event, note) => {
-    event.stopPropagation(); // Prevent opening the note modal
+    event.stopPropagation();
     const newFavoriteStatus = !note.isFavorited;
 
-    // Optimistic UI update for instant feedback
     setNotes(notes.map(n =>
       n._id === note._id ? { ...n, isFavorited: newFavoriteStatus } : n
     ));
 
-    // Fire the API call
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isFavorited: newFavoriteStatus }, config);
     } catch (error) {
       console.error('Failed to update favorite status', error);
-      // On error, revert the change by refetching
       fetchNotes();
     }
   };
@@ -162,7 +255,6 @@ const DashboardPage = () => {
   const handleMoveToBin = async (note) => {
     if (!note) return;
 
-    // 1. Optimistic UI
     setNotes(notes.filter(n => n._id !== note._id));
     handleCloseMenu();
 
@@ -170,17 +262,14 @@ const DashboardPage = () => {
       clearTimeout(toast.hideTimer);
     }
 
-    // 2. Fire API call
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isBinned: true }, config);
 
-      // 3. Set timer to HIDE toast
       const timerId = setTimeout(() => {
         setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
       }, 5000);
 
-      // 4. Show the toast
       setToast({
         isVisible: true,
         message: 'Note moved to bin',
@@ -191,9 +280,8 @@ const DashboardPage = () => {
 
     } catch (error) {
       console.error('Failed to move to bin', error);
-      fetchNotes(); // Revert on error
+      fetchNotes(); 
 
-      // 👇 ADD THIS TO SHOW THE ERROR (e.g., "Only the owner can move this note")
       const errorMsg = error.response?.data?.message || 'Failed to move to bin';
       const timerId = setTimeout(() => {
         setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
@@ -212,16 +300,14 @@ const DashboardPage = () => {
   const handleRestoreNote = async (note) => {
     if (!note) return;
 
-    // 1. Optimistic UI: Remove from bin view
     setNotes(notes.filter(n => n._id !== note._id));
 
-    // 2. Fire API call
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isBinned: false }, config);
     } catch (error) {
       console.error('Failed to restore note', error);
-      fetchNotes(); // Revert on error
+      fetchNotes();
     }
   };
 
@@ -229,67 +315,23 @@ const DashboardPage = () => {
     if (auth) {
       const fetchAllNotesForLabels = async () => {
         const config = { headers: { Authorization: `Bearer ${auth.token}` } };
-        // New backend logic fetches ALL notes when 'archived' is omitted
         const { data } = await axios.get(`http://localhost:3001/api/notes`, config);
         const uniqueLabels = [...new Set(data.flatMap(note => note.labels))];
         setAllLabels(uniqueLabels);
       };
       fetchAllNotesForLabels();
-      fetchNotes(); // Fetch notes for the current view
+      fetchNotes(); 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth, view]);
 
-  const handleConfirmShare = async (email) => {
-    const noteId = shareModalState.noteId; // Get noteId from state
-    if (!email || !noteId) {
-      return; // Safety check
-    }
-
-    try {
-      const config = { headers: { Authorization: `Bearer ${auth.token}` } };
-      const { data } = await axios.post(`http://localhost:3001/api/notes/${noteId}/share`, { email }, config);
-
-      // ... (your existing toast logic for success)
-      const timerId = setTimeout(() => {
-        setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
-      }, 3000);
-      setToast({
-        isVisible: true,
-        message: data.message,
-        undoData: null,
-        hideTimer: timerId,
-        undoType: null
-      });
-
-    } catch (error) {
-      console.error('Failed to share note', error);
-      // ... (your existing toast logic for error)
-      const errorMsg = error.response?.data?.message || 'Failed to share note';
-      const timerId = setTimeout(() => {
-        setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
-      }, 3000);
-      setToast({
-        isVisible: true,
-        message: errorMsg,
-        undoData: null,
-        hideTimer: timerId,
-        undoType: null
-      });
-    } finally {
-      // Close the modal regardless of success or error
-      setShareModalState({ isOpen: false, noteId: null });
-    }
-  };
-
-  //  4. CREATE A NEW FUNCTION TO OPEN THE MODAL
   const handleOpenShareModal = (event, noteId) => {
-    event.stopPropagation(); // Stop the note modal from opening
+    event.stopPropagation();
     setShareModalState({ isOpen: true, noteId: noteId });
   };
 
   const handleOpenLabelModal = (note) => {
-    setMenuState({ isOpen: false }); // Close the options menu
+    setMenuState({ isOpen: false });
     setLabelModalState({ isOpen: true, note: note });
   };
 
@@ -301,7 +343,6 @@ const DashboardPage = () => {
     const noteId = labelModalState.note._id;
     if (!noteId) return;
 
-    // Optimistic UI update
     setNotes(notes.map(n => (n._id === noteId ? { ...n, labels: newLabels } : n)));
 
     try {
@@ -309,7 +350,7 @@ const DashboardPage = () => {
       await axios.put(`http://localhost:3001/api/notes/${noteId}`, { labels: newLabels }, config);
     } catch (error) {
       console.error('Failed to save labels', error);
-      fetchNotes(); // Revert on error
+      fetchNotes();
     }
   };
 
@@ -321,7 +362,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (searchTerm === '' && notes.length === 0) {
-      return; // Don't search on the very first render
+      return; 
     }
 
     const timerId = setTimeout(() => {
@@ -332,7 +373,6 @@ const DashboardPage = () => {
   }, [searchTerm, auth]);
 
   useEffect(() => {
-    // Only try to focus if the user has typed a search term
     if (searchTerm && searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -342,11 +382,9 @@ const DashboardPage = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       const { data } = await axios.post('http://localhost:3001/api/notes', {}, config);
-      // Don't add to notes state immediately, let fetchNotes handle it after modal closes
-      setSelectedNoteId(data._id); // Open the new note in the modal
+      setSelectedNoteId(data._id); 
     } catch (error) {
       console.error('Error creating note:', error);
-      // Optionally show an error toast
     }
   };
 
@@ -358,34 +396,27 @@ const DashboardPage = () => {
     if (toast.hideTimer) clearTimeout(toast.hideTimer);
 
     try {
-      // ... (your existing API call is correct)
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isArchived: newArchivedStatus }, config);
     } catch (error) {
-      // ... (your existing error handling is correct)
       console.error('Failed to update archive status', error);
       fetchNotes();
       return;
     }
 
-    // 4. Set a timer to HIDE the toast
     const timerId = setTimeout(() => {
-      // --- UPDATE THIS LINE ---
       setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
     }, 5000);
 
-    // 5. Show the toast
-    // --- UPDATE THIS OBJECT ---
     setToast({
       isVisible: true,
       message: newArchivedStatus ? 'Note archived' : 'Note un-archived',
-      undoData: note, // Changed from 'noteToUndo'
+      undoData: note, 
       hideTimer: timerId,
-      undoType: 'archive' // <-- Set the type!
+      undoType: 'archive' 
     });
   };
 
-  // --- Delete Logic ---
   const openDeleteModal = (noteId) => {
     setNoteToDelete(noteId);
     setIsModalOpen(true);
@@ -410,7 +441,7 @@ const DashboardPage = () => {
   };
 
   const handleOpenPalette = (event, noteId) => {
-    event.stopPropagation(); // Prevent opening the note modal
+    event.stopPropagation(); 
     const rect = event.currentTarget.getBoundingClientRect();
     setPaletteState({
       isOpen: true,
@@ -427,7 +458,6 @@ const DashboardPage = () => {
     const noteId = paletteState.noteId;
     if (!noteId) return;
 
-    // Optimistic UI update for instant feedback
     setNotes(notes.map(n => (n._id === noteId ? { ...n, color } : n)));
     handleClosePalette();
 
@@ -436,7 +466,6 @@ const DashboardPage = () => {
       await axios.put(`http://localhost:3001/api/notes/${noteId}`, { color }, config);
     } catch (error) {
       console.error('Failed to update color', error);
-      // Optional: Revert the change on error
       fetchNotes();
     }
   };
@@ -459,18 +488,17 @@ const DashboardPage = () => {
     const noteId = menuState.noteId;
     if (!noteId) return;
 
-    handleCloseMenu(); // Close the menu immediately
+    handleCloseMenu(); 
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       const { data } = await axios.post(`http://localhost:3001/api/notes/${noteId}/copy`, {}, config);
-      // Add the new copy to the top of the list for instant feedback
       setNotes(prevNotes => [data, ...prevNotes]);
     } catch (error) {
       console.error('Failed to copy note', error);
     }
   };
 
-  let pageTitle = 'My Notes'; // Default title
+  let pageTitle = 'My Notes';
   if (view === 'favorites') {
     pageTitle = 'Favorites';
   } else if (view === 'archive') {
@@ -478,7 +506,6 @@ const DashboardPage = () => {
   } else if (view === 'bin') {
     pageTitle = 'Bin';
   } else if (view !== 'notes') {
-    // If it's not notes, favorites, archive, or bin, it must be a label
     pageTitle = `# ${view}`;
   }
 
@@ -487,46 +514,37 @@ const DashboardPage = () => {
   return (
     <>
       <div
-        className={`flex h-[calc(100vh-64px)] overflow-x-hidden transition-all duration-300 ${isModalOpen || selectedNoteId ? 'blur-sm' : ''
-          } bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#1e293b]`}
+        className={`flex h-[calc(100vh-64px)] overflow-hidden relative bg-gray-900 transition-all duration-300 ${isModalOpen || selectedNoteId ? 'blur-sm' : ''}`}
       >
+        {/* Abstract Background Blobs (Matches Login Page) */}
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600 rounded-full filter blur-[120px] opacity-10 -translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600 rounded-full filter blur-[120px] opacity-10 translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
+
         {/* Sidebar */}
         <aside
-          className={`bg-[#0b1120] border-r border-gray-800 flex-shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64 p-5' : 'w-20 py-5' // Change width and padding
-            }`}
+          className={`z-20 bg-gray-900 border-r border-gray-700 flex-shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64 p-5' : 'w-20 py-5'}`}
         >
-          {/* <h2 className={`text-lg font-semibold text-gray-300 mb-6 ${isSidebarOpen ? 'block' : 'hidden'}`}>
-            Workspace
-          </h2> */}
-
           <nav className="space-y-2">
-            {/* 👉 This is the main change */}
             <button
               onClick={() => setView('notes')}
-              className={`w-full flex items-center py-2 h-11 text-white font-medium transition duration-100 ${isSidebarOpen
-                ? // Styles when sidebar is OPEN
-                `rounded-lg ${view === 'notes' ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'hover:bg-gray-700'}`
-                : // Styles when sidebar is CLOSED (icons only)
-                `rounded-full ${view === 'notes' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 p-2' : 'hover:bg-gray-700 p-2'}`
-                } ${isSidebarOpen ? 'px-3 gap-3' : 'justify-center'}`}
+              className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
+                ? `rounded-xl ${view === 'notes' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                : `rounded-full justify-center ${view === 'notes' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                } ${isSidebarOpen ? 'px-4 gap-3' : ''}`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                <path
-                  fillRule="evenodd"
-                  d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h.01a1 1 0 100-2H10zm3 0a1 1 0 000 2h.01a1 1 0 100-2H13z"
-                  clipRule="evenodd"
-                />
+                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h.01a1 1 0 100-2H10zm3 0a1 1 0 000 2h.01a1 1 0 100-2H13z" clipRule="evenodd" />
               </svg>
               <span className={isSidebarOpen ? 'inline' : 'hidden'}>All Notes</span>
             </button>
 
             <button
               onClick={() => setView('favorites')}
-              className={`w-full flex items-center py-2 h-11 text-white font-medium transition duration-100 ${isSidebarOpen
-                ? `rounded-lg ${view === 'favorites' ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'hover:bg-gray-700'}`
-                : `rounded-full ${view === 'favorites' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 p-2' : 'hover:bg-gray-700 p-2'}`
-                } ${isSidebarOpen ? 'px-3 gap-3' : 'justify-center'}`}
+              className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
+                ? `rounded-xl ${view === 'favorites' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                : `rounded-full justify-center ${view === 'favorites' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                } ${isSidebarOpen ? 'px-4 gap-3' : ''}`}
             >
               <IoIosStarOutline className="h-5 w-5 flex-shrink-0" />
               <span className={isSidebarOpen ? 'inline' : 'hidden'}>Favorites</span>
@@ -534,10 +552,10 @@ const DashboardPage = () => {
 
             <button
               onClick={() => setView('archive')}
-              className={`w-full flex items-center py-2 h-11 text-white font-medium transition duration-100 ${isSidebarOpen
-                ? `rounded-lg ${view === 'archive' ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'hover:bg-gray-700'}`
-                : `rounded-full ${view === 'archive' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 p-2' : 'hover:bg-gray-700 p-2'}`
-                } ${isSidebarOpen ? 'px-3 gap-3' : 'justify-center'}`}
+              className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
+                ? `rounded-xl ${view === 'archive' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                : `rounded-full justify-center ${view === 'archive' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                } ${isSidebarOpen ? 'px-4 gap-3' : ''}`}
             >
               <RiInboxArchiveLine className="h-5 w-5 flex-shrink-0" />
               <span className={isSidebarOpen ? 'inline' : 'hidden'}>Archive</span>
@@ -545,10 +563,10 @@ const DashboardPage = () => {
 
             <button
               onClick={() => setView('bin')}
-              className={`w-full flex items-center py-2 h-11 text-white font-medium transition duration-100 ${isSidebarOpen
-                ? `rounded-lg ${view === 'bin' ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'hover:bg-gray-700'}`
-                : `rounded-full ${view === 'bin' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 p-2' : 'hover:bg-gray-700 p-2'}`
-                } ${isSidebarOpen ? 'px-3 gap-3' : 'justify-center'}`}
+              className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
+                ? `rounded-xl ${view === 'bin' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                : `rounded-full justify-center ${view === 'bin' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
+                } ${isSidebarOpen ? 'px-4 gap-3' : ''}`}
             >
               <RiDeleteBin6Line className="h-5 w-5 flex-shrink-0" />
               <span className={isSidebarOpen ? 'inline' : 'hidden'}>Bin</span>
@@ -556,16 +574,15 @@ const DashboardPage = () => {
           </nav>
 
           <div className={`mt-8 ${isSidebarOpen ? 'block' : 'hidden'}`}>
-            <h3 className="text-sm font-semibold text-gray-400 mb-2 px-3">Labels</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 px-4">Labels</h3>
             <nav className="space-y-1">
               {allLabels.map(label => (
                 <button
                   key={label}
                   onClick={() => setView(label)}
-                  // 👉 This is the line to change
-                  className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg text-white font-medium transition duration-100 ${view === label ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'hover:bg-gray-700'}`}
+                  className={`w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${view === label ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}
                 >
-                  <span># {label}</span>
+                  <span className="text-blue-500">#</span> {label}
                 </button>
               ))}
             </nav>
@@ -573,355 +590,204 @@ const DashboardPage = () => {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 w-full overflow-y-auto p-10 px-15 transition-all duration-300 ease-in-out">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-extrabold text-white tracking-tight">
-              {pageTitle} {/* Use the dynamic title */}
-            </h1>
-            {view === 'notes' && (
-              <div className="flex items-center gap-4">
-                {/* Search */}
-                <div className="relative">
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search notes..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-[#0f172a] border border-gray-700 text-gray-200 placeholder-gray-400 rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                  />
-                  <svg
-                    className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+        <main className="flex-1 w-full overflow-y-auto p-8 z-10 relative">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+              <div>
+                <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
+                  {pageTitle}
+                </h1>
+                 <p className="text-gray-400 text-sm">
+                    {view === 'bin' ? 'Notes in the bin are deleted after 30 days.' : 'Manage and organize your thoughts.'}
+                 </p>
+              </div>
+              
+              {view === 'notes' && (
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  {/* Updated Search Bar */}
+                  <div className="relative flex-1 md:flex-none md:w-80">
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Search notes..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-500 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition shadow-sm"
+                    />
+                    <svg
+                      className="w-5 h-5 text-gray-500 absolute top-1/2 left-3 -translate-y-1/2"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+
+                  {/* Updated Create Button */}
+                  <button
+                    onClick={handleCreateNote}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition duration-300 transform hover:scale-105 active:scale-95"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="hidden sm:inline">Create Note</span>
+                  </button>
                 </div>
+              )}
+            </div>
 
-                {/* Create Button */}
-                <button
-                  onClick={handleCreateNote}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2 px-5 rounded-lg flex items-center gap-2 shadow-md transition duration-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>Create Note</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Notes Grid */}
-          {view === 'bin' ? (
-            // --- BIN VIEW ---
-            notes.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {notes.map((note) => (
-                  <div
-                    key={note._id}
-                    style={{ backgroundColor: note.color }}
-                    className="group border border-white/20 p-5 rounded-xl transition-all duration-300 relative"
-                  >
-                    <h3 className="font-bold text-lg text-white mb-2 truncate">{note.title}</h3>
-                    <div
-                      className="text-white text-sm mb-4 h-10 overflow-hidden prose prose-invert prose-p:my-0"
-                      dangerouslySetInnerHTML={{ __html: note.content || '...' }}
-                    />
-                    {/* Bin-specific actions */}
-                    <div className="mt-4 flex items-center gap-4">
-                      <button
-                        onClick={() => handleRestoreNote(note)}
-                        className="p-2 text-gray-300 rounded-full hover:bg-gray-600 transition-all duration-200"
-                      >
-                        <FaTrashRestoreAlt />
-                      </button>
-
-
-                      <button
-                        onClick={() => openDeleteModal(note._id)}
-                        className="p-2 text-gray-300 rounded-full hover:bg-gray-600 transition-all duration-200"
-                      >
-                        <MdDeleteForever className="text-xl" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center mt-20">
-                <h2 className="text-2xl font-semibold text-white">Your bin is empty</h2>
-                <p className="text-gray-400 mt-2">Notes you move to the bin will appear here.</p>
-              </div>
-            )
-          ) : view === 'favorites' ? (            // FAVORITES VIEW LOGIC
-            (() => {
-              const favoritedUnarchived = notes.filter(note => note.isFavorited && !note.isArchived);
-              const favoritedArchived = notes.filter(note => note.isFavorited && note.isArchived);
-
-              return favoritedUnarchived.length > 0 || favoritedArchived.length > 0 ? (
-                <div>
-                  {/* --- Unarchived Favorited Notes --- */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {favoritedUnarchived.map((note) => (
-                      <div
+            {/* Notes Grid */}
+            {view === 'bin' ? (
+              notes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {notes.map((note) => (
+                     <NoteCard
                         key={note._id}
-                        style={{ backgroundColor: note.color }}
-                        className="group backdrop-blur-sm border border-white/20 p-5 rounded-xl hover:border-white/50 transition-all duration-300 relative cursor-pointer"
-                        onClick={() => setSelectedNoteId(note._id)}
-                      >
-                        {/* Delete button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); openDeleteModal(note._id); }}
-                          className="absolute top-3 right-4 text-white/90 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-
-                        {/* Note content */}
-                        <h3 className="font-bold text-lg text-white mb-2 truncate">{note.title}</h3>
-                        <div
-                          className="text-white text-sm mb-4 h-10 overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1"
-                          dangerouslySetInnerHTML={{ __html: note.content || 'No content yet...' }}
-                        />
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {note.labels.map(label => (
-                            <span key={label} className="bg-white/10 text-xs text-gray-300 px-2 py-0.5 rounded-full">
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Hover toolbar */}
-                        <div
-                          className={`absolute bottom-3 right-3 flex items-center gap-2 transition-opacity duration-300 ${(menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                            }`}
-                        >
-                          <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                            <LuPalette />
-                          </button>
-                          <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                            <TbUsersPlus />
-                          </button>
-                          <button
-                            onClick={(e) => handleToggleFavorite(e, note)}
-                            className="p-1.5 rounded-full hover:bg-white/10"
-                          >
-                            {note.isFavorited ? <IoIosStar className="text-yellow-400" /> : <IoIosStarOutline />}
-                          </button>
-                          <button
-                            onClick={(e) => handleToggleArchive(e, note)}
-                            className="p-1.5 rounded-full hover:bg-white/10"
-                          >
-                            <RiInboxArchiveLine />
-                          </button>
-                          <button
-                            onClick={(e) => handleOpenMenu(e, note._id)}
-                            className="p-1.5 rounded-full hover:bg-white/10"
-                          >
-                            <BsThreeDotsVertical />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* --- Archived Favorites Section --- */}
-                  {favoritedArchived.length > 0 && (
-                    <>
-                      <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-12 mb-4">
-                        Archive
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {favoritedArchived.map((note) => (
-                          <div
-                            key={note._id}
-                            style={{ backgroundColor: note.color }}
-                            className="group backdrop-blur-sm border border-white/20 p-5 rounded-xl hover:border-white/50 transition-all duration-300 relative cursor-pointer"
-                            onClick={() => setSelectedNoteId(note._id)}
-                          >
-                            {/* Delete button */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openDeleteModal(note._id); }}
-                              className="absolute top-3 right-4 text-white/90 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-
-                            {/* Note content */}
-                            <h3 className="font-bold text-lg text-white mb-2 truncate">{note.title}</h3>
-                            <div
-                              className="text-white text-sm mb-4 h-10 overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1"
-                              dangerouslySetInnerHTML={{ __html: note.content || 'No content yet...' }}
-                            />
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {note.labels.map(label => (
-                                <span key={label} className="bg-white/10 text-xs text-gray-300 px-2 py-0.5 rounded-full">
-                                  {label}
-                                </span>
-                              ))}
-                            </div>
-
-                            {/* Hover toolbar */}
-                            <div
-                              className={`absolute bottom-3 right-3 flex items-center gap-2 transition-opacity duration-300 ${(menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                }`}
-                            >
-                              <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                                <LuPalette />
-                              </button>
-                              <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                                <TbUsersPlus />
-                              </button>
-                              <button
-                                onClick={(e) => handleToggleFavorite(e, note)}
-                                className="p-1.5 rounded-full hover:bg-white/10"
-                              >
-                                {note.isFavorited ? <IoIosStar className="text-yellow-400" /> : <IoIosStarOutline />}
-                              </button>
-                              <button
-                                onClick={(e) => handleToggleArchive(e, note)}
-                                className="p-1.5 rounded-full hover:bg-white/10"
-                              >
-                                <RiInboxArchiveLine />
-                              </button>
-                              <button
-                                onClick={(e) => handleOpenMenu(e, note._id)}
-                                className="p-1.5 rounded-full hover:bg-white/10"
-                              >
-                                <BsThreeDotsVertical />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                        note={note}
+                        isBin={true}
+                        menuState={menuState}
+                        onSelect={setSelectedNoteId}
+                        onRestore={handleRestoreNote}
+                        onDelete={openDeleteModal}
+                        onPalette={handleOpenPalette}
+                        onShare={handleOpenShareModal}
+                        onFavorite={handleToggleFavorite}
+                        onArchive={handleToggleArchive}
+                        onMenu={handleOpenMenu}
+                      />
+                  ))}
                 </div>
               ) : (
-                <div className="text-center mt-20">
-                  <h2 className="text-2xl font-semibold text-white">No favorited notes</h2>
-                  <p className="text-gray-400 mt-2">Click the star on a note to add it here.</p>
+                <div className="flex flex-col items-center justify-center mt-20 text-center opacity-60">
+                   <RiDeleteBin6Line className="text-6xl text-gray-600 mb-4" />
+                  <h2 className="text-xl font-semibold text-white">Bin is Empty</h2>
+                  <p className="text-gray-400 mt-2">Items moved to the bin will appear here.</p>
                 </div>
-              );
-            })()
-          ) : (
-            // DEFAULT VIEW LOGIC
-            filteredNotes.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredNotes.map((note) => (
-                  <div
-                    key={note._id}
-                    style={{ backgroundColor: note.color }}
-                    className="group backdrop-blur-sm border border-white/20 p-5 rounded-xl hover:border-white/50 transition-all duration-300 relative cursor-pointer"
-                    onClick={() => setSelectedNoteId(note._id)}
-                  >
-                    {/* Delete button */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openDeleteModal(note._id); }}
-                      className="absolute top-3 right-4 text-white/90 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                      </svg>
-                    </button>
+              )
+            ) : view === 'favorites' ? (
+              (() => {
+                const favoritedUnarchived = notes.filter(note => note.isFavorited && !note.isArchived);
+                const favoritedArchived = notes.filter(note => note.isFavorited && note.isArchived);
 
-                    {/* Note content */}
-                    <h3 className="font-bold text-lg text-white mb-2 truncate">{note.title}</h3>
-                    <div
-                      className="text-white text-sm mb-4 h-10 overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1"
-                      dangerouslySetInnerHTML={{ __html: note.content || 'No content yet...' }}
-                    />
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {note.labels.map(label => (
-                        <span key={label} className="bg-white/10 text-xs text-gray-300 px-2 py-0.5 rounded-full">
-                          {label}
-                        </span>
-                      ))}
-                    </div>
+                return favoritedUnarchived.length > 0 || favoritedArchived.length > 0 ? (
+                  <div>
+                    {favoritedUnarchived.length > 0 && (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+                          {favoritedUnarchived.map((note) => (
+                            <NoteCard
+                              key={note._id}
+                              note={note}
+                              isBin={false}
+                              menuState={menuState}
+                              onSelect={setSelectedNoteId}
+                              onRestore={handleRestoreNote}
+                              onDelete={openDeleteModal}
+                              onPalette={handleOpenPalette}
+                              onShare={handleOpenShareModal}
+                              onFavorite={handleToggleFavorite}
+                              onArchive={handleToggleArchive}
+                              onMenu={handleOpenMenu}
+                            />
+                          ))}
+                       </div>
+                    )}
 
-                    {/* Hover toolbar */}
-                    <div
-                      className={`absolute bottom-3 right-3 flex items-center gap-2 transition-opacity duration-300 ${(menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}
-                    >
-                      <button onClick={(e) => handleOpenPalette(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                        <LuPalette />
-                      </button>
-                      <button onClick={(e) => handleOpenShareModal(e, note._id)} className="p-1.5 rounded-full hover:bg-white/10">
-                        <TbUsersPlus />
-                      </button>
-                      <button
-                        onClick={(e) => handleToggleFavorite(e, note)}
-                        className="p-1.5 rounded-full hover:bg-white/10"
-                      >
-                        {note.isFavorited ? <IoIosStar className="text-yellow-400" /> : <IoIosStarOutline />}
-                      </button>
-                      <button
-                        onClick={(e) => handleToggleArchive(e, note)}
-                        className="p-1.5 rounded-full hover:bg-white/10"
-                      >
-                        <RiInboxArchiveLine />
-                      </button>
-                      <button
-                        onClick={(e) => handleOpenMenu(e, note._id)}
-                        className="p-1.5 rounded-full hover:bg-white/10"
-                      >
-                        <BsThreeDotsVertical />
-                      </button>
-                    </div>
+                    {favoritedArchived.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-4 mb-6 mt-8">
+                            <div className="h-px flex-1 bg-gray-700"></div>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Archived Favorites</span>
+                            <div className="h-px flex-1 bg-gray-700"></div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {favoritedArchived.map((note) => (
+                             <NoteCard
+                                key={note._id}
+                                note={note}
+                                isBin={false}
+                                menuState={menuState}
+                                onSelect={setSelectedNoteId}
+                                onRestore={handleRestoreNote}
+                                onDelete={openDeleteModal}
+                                onPalette={handleOpenPalette}
+                                onShare={handleOpenShareModal}
+                                onFavorite={handleToggleFavorite}
+                                onArchive={handleToggleArchive}
+                                onMenu={handleOpenMenu}
+                              />
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center mt-20">
-                {view === 'archive' ? (
-                  <>
-                    <h2 className="text-2xl font-semibold text-white">No Notes in Archive</h2>
-                    <p className="text-gray-400 mt-2">Archived notes will appear here.</p>
-                  </>
                 ) : (
-                  <>
-                    <h2 className="text-2xl font-semibold text-white">No Notes Yet!</h2>
-                    <p className="text-gray-400 mt-2 mb-6">Start capturing your ideas beautifully 💡</p>
-                    <button
-                      onClick={handleCreateNote}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-7 rounded-lg shadow-md transition duration-300 text-xl cursor-pointer"
-                    >
-                      <span>Create Note</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            )
-          )}
+                  <div className="flex flex-col items-center justify-center mt-20 text-center opacity-60">
+                     <IoIosStarOutline className="text-6xl text-gray-600 mb-4" />
+                    <h2 className="text-xl font-semibold text-white">No Favorites Yet</h2>
+                    <p className="text-gray-400 mt-2">Star important notes to access them quickly.</p>
+                  </div>
+                );
+              })()
+            ) : (
+              // Default View
+              filteredNotes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredNotes.map((note) => (
+                    <NoteCard
+                        key={note._id}
+                        note={note}
+                        isBin={false}
+                        menuState={menuState}
+                        onSelect={setSelectedNoteId}
+                        onRestore={handleRestoreNote}
+                        onDelete={openDeleteModal}
+                        onPalette={handleOpenPalette}
+                        onShare={handleOpenShareModal}
+                        onFavorite={handleToggleFavorite}
+                        onArchive={handleToggleArchive}
+                        onMenu={handleOpenMenu}
+                      />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center mt-28 text-center">
+                  <div onClick={handleCreateNote} className="bg-gray-800 cursor-pointer p-6 rounded-full mb-6 transition duration-300 hover:bg-gray-700">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                     </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">Create your first note</h2>
+                  <p className="text-gray-400 max-w-md mb-8">
+                    Capture ideas, lists, and projects. Organize them with colors and labels.
+                  </p>
+                </div>
+              )
+            )}
+          </div>
         </main>
       </div>
 
-      {/* Modals */}
+      {/* Modals and overlays remain the same */}
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={closeDeleteModal}
         onConfirm={confirmDeleteNote}
         message="Are you sure you want to permanently delete this note?"
       />
-
+      
+      {/* Use updated component with noteId prop */}
       <ShareNoteModal
-            isOpen={shareModalState.isOpen}
-            onClose={() => setShareModalState({ isOpen: false, noteId: null })}
-            onShare={handleConfirmShare}
-          />
+        isOpen={shareModalState.isOpen}
+        noteId={shareModalState.noteId}
+        onClose={() => setShareModalState({ isOpen: false, noteId: null })}
+      />
 
       <AnimatePresence>
         {selectedNoteId && (
@@ -931,18 +797,15 @@ const DashboardPage = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/20 backdrop-blur-sm"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           >
             <motion.div
               key="modal"
-              initial={{ scale: 0.9, opacity: 0, y: 40 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 40 }}
-              transition={{
-                duration: 0.3,
-                ease: [0.4, 0, 0.2, 1],
-              }}
-              className="w-full max-w-3xl mx-auto"
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full max-w-4xl h-[85vh] relative"
             >
               <NoteViewModal
                 noteId={selectedNoteId}
@@ -954,18 +817,15 @@ const DashboardPage = () => {
             </motion.div>
           </motion.div>
         )}
-        <AnimatePresence>
-          {menuState.isOpen && (
-            <NoteOptionsMenu
-              onClose={handleCloseMenu}
-              onCopy={handleCopyNote}
-              // Pass the current note to the "Add label" handler
-              onAddLabel={() => handleOpenLabelModal(notes.find(n => n._id === menuState.noteId))}
-              onMoveToBin={() => handleMoveToBin(notes.find(n => n._id === menuState.noteId))}
-              position={menuState.position}
-            />
-          )}
-        </AnimatePresence>
+        {menuState.isOpen && (
+          <NoteOptionsMenu
+            onClose={handleCloseMenu}
+            onCopy={handleCopyNote}
+            onAddLabel={() => handleOpenLabelModal(notes.find(n => n._id === menuState.noteId))}
+            onMoveToBin={() => handleMoveToBin(notes.find(n => n._id === menuState.noteId))}
+            position={menuState.position}
+          />
+        )}
         {labelModalState.isOpen && (
           <AddLabelModal
             existingLabels={labelModalState.note.labels}
@@ -984,12 +844,11 @@ const DashboardPage = () => {
       <Toast
         isOpen={toast.isVisible}
         message={toast.message}
-        onUndo={handleUndo} // <-- CHANGE THIS from handleUndoArchive to handleUndo
+        onUndo={handleUndo}
         onClose={handleCloseToast}
       />
     </>
   );
-
 };
 
 export default DashboardPage;
