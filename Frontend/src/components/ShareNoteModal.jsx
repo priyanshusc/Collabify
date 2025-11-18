@@ -1,7 +1,7 @@
 // Frontend/src/components/ShareNoteModal.jsx
 import React, { useState } from 'react';
 
-const ShareNoteModal = ({ onShare, onClose }) => {
+const ShareNoteModal = ({ isOpen, onShare, onClose }) => {
   const [email, setEmail] = useState('');
 
   const handleSubmit = (e) => {
@@ -13,12 +13,20 @@ const ShareNoteModal = ({ onShare, onClose }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center"
-      onClick={onClose} // Close modal if backdrop is clicked
+      className={`
+        fixed inset-0 bg-black/50 bg-opacity-70 z-50 flex justify-center items-center
+        transition-opacity duration-300 ease-in-out
+        ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+      `}
+      onClick={onClose} 
     >
       <div 
-        className="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md"
-        onClick={e => e.stopPropagation()} // Prevent modal from closing when clicking inside
+        className={`
+          bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md
+          transform transition-all duration-300 ease-in-out
+          ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}
+        `}
+        onClick={e => e.stopPropagation()} 
       >
         <h3 className="text-xl font-bold text-white mb-4">Share Note</h3>
         

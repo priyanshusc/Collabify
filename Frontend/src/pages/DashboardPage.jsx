@@ -83,7 +83,7 @@ const DashboardPage = () => {
 
     // 2. Stop the "hide" timer
     clearTimeout(hideTimer);
-    
+
     // 3. 🚨 REMOVE THIS LINE 🚨 (This was the problem)
     // setNotes(prevNotes => [noteToRestore, ...prevNotes]);
 
@@ -103,16 +103,16 @@ const DashboardPage = () => {
           isBinned: false // Restore it
         }, config);
       }
-      
+
       // 💡 6. ADD THIS LINE: Fetch notes *after* API call succeeds
-      fetchNotes(); 
+      fetchNotes();
 
     } catch (error) {
       console.error(`Failed to undo ${undoType}`, error);
       fetchNotes(); // Also refetch if the reversal fails
     }
   };
-  
+
   const filteredNotes = view === 'notes' || view === 'archive'
     ? notes
     : notes.filter(note => note.labels.includes(view));
@@ -174,17 +174,17 @@ const DashboardPage = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${auth.token}` } };
       await axios.put(`http://localhost:3001/api/notes/${note._id}`, { isBinned: true }, config);
-      
+
       // 3. Set timer to HIDE toast
       const timerId = setTimeout(() => {
         setToast({ isVisible: false, message: '', undoData: null, hideTimer: null, undoType: null });
       }, 5000);
-  
+
       // 4. Show the toast
       setToast({
         isVisible: true,
         message: 'Note moved to bin',
-        undoData: note, 
+        undoData: note,
         hideTimer: timerId,
         undoType: 'bin'
       });
@@ -192,7 +192,7 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Failed to move to bin', error);
       fetchNotes(); // Revert on error
-      
+
       // 👇 ADD THIS TO SHOW THE ERROR (e.g., "Only the owner can move this note")
       const errorMsg = error.response?.data?.message || 'Failed to move to bin';
       const timerId = setTimeout(() => {
@@ -339,16 +339,16 @@ const DashboardPage = () => {
   }, [notes]);
 
   const handleCreateNote = async () => {
-        try {
-            const config = { headers: { Authorization: `Bearer ${auth.token}` } };
-            const { data } = await axios.post('http://localhost:3001/api/notes', {}, config);
-            // Don't add to notes state immediately, let fetchNotes handle it after modal closes
-            setSelectedNoteId(data._id); // Open the new note in the modal
-        } catch (error) {
-            console.error('Error creating note:', error);
-            // Optionally show an error toast
-        }
-    };
+    try {
+      const config = { headers: { Authorization: `Bearer ${auth.token}` } };
+      const { data } = await axios.post('http://localhost:3001/api/notes', {}, config);
+      // Don't add to notes state immediately, let fetchNotes handle it after modal closes
+      setSelectedNoteId(data._id); // Open the new note in the modal
+    } catch (error) {
+      console.error('Error creating note:', error);
+      // Optionally show an error toast
+    }
+  };
 
   const handleToggleArchive = async (event, note) => {
     event.stopPropagation();
@@ -917,6 +917,12 @@ const DashboardPage = () => {
         message="Are you sure you want to permanently delete this note?"
       />
 
+      <ShareNoteModal
+            isOpen={shareModalState.isOpen}
+            onClose={() => setShareModalState({ isOpen: false, noteId: null })}
+            onShare={handleConfirmShare}
+          />
+
       <AnimatePresence>
         {selectedNoteId && (
           <motion.div
@@ -965,12 +971,6 @@ const DashboardPage = () => {
             existingLabels={labelModalState.note.labels}
             onClose={handleCloseLabelModal}
             onSave={handleSaveLabels}
-          />
-        )}
-        {shareModalState.isOpen && (
-          <ShareNoteModal
-            onClose={() => setShareModalState({ isOpen: false, noteId: null })}
-            onShare={handleConfirmShare}
           />
         )}
       </AnimatePresence>

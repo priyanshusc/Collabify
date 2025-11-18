@@ -3,15 +3,62 @@ const User = require('../models/user');
 const Note = require('../models/note');
 const NoteMeta = require('../models/noteMeta')
 
-// @desc    Get all notes for a user (now with search)
-// @route   GET /api/notes
-// @access  Private
-// @desc    Get notes for a user (with archive & search)
-// @route   GET /api/notes
-// @access  Private
-// @desc    Get notes for a user
-// @route   GET /api/notes
-// @access  Private
+const removeCollaborator = async (req, res) => {
+    const { id: noteId, userId: userToRemoveId } = req.params;
+    const currentUserId = req.user._id;
+
+    try {
+        // 1. Find the owner's metadata for the note
+        const ownerMeta = await NoteMeta.findOne({ note: noteId, user: currentUserId });
+
+        // 2. Security Check: Only the owner can remove people
+        if (!ownerMeta || ownerMeta.role !== 'owner') {
+            return res.status(401).json({ message: 'Only the owner can remove collaborators' });
+        }
+
+        // 3. Security Check: The owner cannot remove themselves
+        if (ownerMeta.user.toString() === userToRemoveId) {
+            return res.status(400).json({ message: 'Owner cannot be removed from the note' });
+        }
+
+        // 4. Find and delete the collaborator's metadata
+        const result = await NoteMeta.deleteOne({ note: noteId, user: userToRemoveId });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: 'Collaborator not found on this note' });
+        }
+
+        res.json({ message: 'Collaborator removed successfully' });
+    } catch (error) {
+        console.error("Error removing collaborator:", error);
+        res.status(500).json({ message: "Error removing collaborator" });
+    }
+};
+
+const getNoteCollaborators = async (req, res) => {
+    const noteId = req.params.id;
+    const userId = req.user._id;
+
+    try {
+        // 1. Security Check: Does the current user have access to this note?
+        const hasAccess = await NoteMeta.findOne({ note: noteId, user: userId });
+        if (!hasAccess) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        // 2. Get all metadata entries for this note, populating user details
+        const metas = await NoteMeta.find({ note: noteId })
+            .populate('user', 'name email avatar') // Select only name, email, and avatar from user
+            .select('user role'); // Select user and role from NoteMeta
+
+        res.json(metas);
+    } catch (error)
+    {
+        console.error("Error fetching collaborators:", error);
+        res.status(500).json({ message: "Error fetching collaborators" });
+    }
+};
+
 const getNotes = async (req, res) => {
     // 1. Build the filter for NoteMeta
     const metaQuery = { user: req.user._id };
@@ -330,5 +377,7 @@ module.exports = {
     getNoteById,
     updateNote,
     copyNote,
-    shareNote
+    shareNote,
+    getNoteCollaborators,
+    removeCollaborator
 };
