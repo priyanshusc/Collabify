@@ -1,6 +1,5 @@
 /* Frontend/src/index.css */
 
-/* 1. Import Tailwind's base styles and the typography plugin */
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -8,61 +7,82 @@
 .ProseMirror {
   @apply prose prose-invert max-w-none;
   
-  /* Removed background-color to make it transparent */
   background-color: transparent; 
-  color: #d1d5db; /* text-gray-300 */
+  color: #e5e7eb; /* text-gray-200 */
   height: 100%;
   outline: none;
+  font-size: 1.1rem; /* Slightly larger text for readability */
+  line-height: 1.75;
 }
 
-/* Style headings, paragraphs, lists etc. inside the editor */
+/* --- Typography Overrides --- */
+
+/* Headings */
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3 {
   color: white;
-  margin-bottom: 0em;
-  margin-top: 0em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
 }
 
-.ProseMirror:focus {
-  outline: none;
+/* Blockquotes - Fixes the "box" look */
+.ProseMirror blockquote {
+  border-left: 4px solid #3b82f6; /* Blue Accent */
+  background: rgba(255, 255, 255, 0.03); /* Very subtle background */
+  color: #9ca3af;
+  font-style: italic;
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.75rem 1rem;
+  margin: 1.5rem 0;
+}
+
+/* Code snippets */
+.ProseMirror code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #93c5fd; /* Light blue text */
+  padding: 0.2em 0.4em;
+  border-radius: 0.25em;
+  font-weight: 500;
+  font-family: 'Fira Code', monospace; /* Optional if you have it, else default mono */
+}
+
+/* Code Blocks */
+.ProseMirror pre {
+  background: #111827; /* bg-gray-900 */
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  color: #e5e7eb;
+}
+
+.ProseMirror pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
 }
 
 /* Placeholder styling */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: #6b7280;
+  color: #4b5563; /* text-gray-600 - darker placeholder */
   pointer-events: none;
   height: 0;
 }
 
+/* Animations */
 @keyframes dropdownOpen {
-  0% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
-
 @keyframes dropdownClose {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0; }
 }
 
-.animate-dropdownOpen {
-  animation: dropdownOpen 0.15s ease-out forwards;
-}
-
-.animate-dropdownClose {
-  animation: dropdownClose 0.15s ease-in forwards;
-}
+.animate-dropdownOpen { animation: dropdownOpen 0.15s ease-out forwards; }
+.animate-dropdownClose { animation: dropdownClose 0.15s ease-in forwards; }

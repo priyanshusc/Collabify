@@ -1,5 +1,5 @@
 // Frontend/src/components/Toolbar.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Bold, 
   Italic, 
@@ -11,6 +11,27 @@ import {
 } from 'lucide-react';
 
 const Toolbar = ({ editor }) => {
+  // 1. Add local state to force re-render
+  const [, setTick] = useState(0);
+
+  // 2. Listen to editor events to trigger updates immediately
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      setTick(prev => prev + 1);
+    };
+
+    // 'transaction' fires on every state change (cursor move, formatting change, typing)
+    editor.on('transaction', handleUpdate);
+    editor.on('selectionUpdate', handleUpdate);
+
+    return () => {
+      editor.off('transaction', handleUpdate);
+      editor.off('selectionUpdate', handleUpdate);
+    };
+  }, [editor]);
+
   if (!editor) {
     return null;
   }

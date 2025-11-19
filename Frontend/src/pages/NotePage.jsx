@@ -1,4 +1,3 @@
-// Frontend/src/pages/NotePage.jsx
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -6,7 +5,7 @@ import AuthContext from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TiptapEditor from '../components/TiptapEditor';
 import Toolbar from '../components/Toolbar';
-import { ArrowLeft, CheckCircle2, Clock, AlertCircle, Cloud } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, AlertCircle, Cloud, MoreHorizontal } from 'lucide-react';
 
 const NotePage = () => {
     const { noteId } = useParams();
@@ -96,75 +95,96 @@ const NotePage = () => {
     }
 
     return (
-        <div className="bg-gray-900 min-h-screen text-white flex flex-col relative overflow-hidden">
-            {/* --- Abstract Background Blobs --- */}
-            <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600 rounded-full filter blur-[150px] opacity-10 -translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
-            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-600 rounded-full filter blur-[150px] opacity-10 translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
+        <div className="bg-gray-900 min-h-screen text-gray-100 flex flex-col relative selection:bg-blue-500/30 selection:text-blue-200">
 
-            {/* --- Header Navigation --- */}
-            <nav className="w-full px-6 py-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md z-30 flex justify-between items-center sticky top-0">
-                <Link 
-                    to="/dashboard" 
-                    className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-white/5"
+            {/* --- FIX START --- */}
+            {/* Wrapper for the absolute positioned glows to contain their overflow */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                <div className="absolute top-0 left-0 -translate-x-1/4 -translate-y-1/4 w-96 h-96 bg-yellow-400 rounded-full filter blur-3xl opacity-20"></div>
+                <div className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 w-96 h-96 bg-red-500 rounded-full filter blur-3xl opacity-20"></div>
+            </div>
+            {/* --- FIX END --- */}
+
+            {/* --- Header (Minimalist) --- */}
+            <header className="sticky top-0 z-50 w-full bg-gray-900/80 backdrop-blur-md border-b border-gray-800 px-6 h-14 flex justify-between items-center">
+                <Link
+                    to="/dashboard"
+                    className="group flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
                 >
-                    <ArrowLeft size={20} />
-                    <span className="font-medium">Back to Dashboard</span>
+                    <div className="p-1.5 rounded-md group-hover:bg-white/10 transition-colors">
+                        <ArrowLeft size={18} />
+                    </div>
+                    <span className="font-medium text-sm">Dashboard</span>
                 </Link>
 
-                <div className="flex items-center gap-6 text-sm">
-                    <div className={`flex items-center gap-2 font-medium uppercase tracking-wider transition-colors ${
-                        saveStatus === 'Saved' ? 'text-emerald-500' : 
-                        saveStatus === 'Error!' ? 'text-red-500' : 'text-blue-500'
-                    }`}>
-                        {saveStatus === 'Saved' ? <CheckCircle2 size={16} /> : 
-                         saveStatus === 'Error!' ? <AlertCircle size={16} /> : 
-                         <Cloud size={16} />}
+                <div className="flex items-center gap-4 text-xs font-medium">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 transition-colors ${saveStatus === 'Saved' ? 'text-emerald-400' :
+                        saveStatus === 'Error!' ? 'text-red-400' : 'text-blue-400'
+                        }`}>
+                        {saveStatus === 'Saved' ? <CheckCircle2 size={12} /> :
+                            saveStatus === 'Error!' ? <AlertCircle size={12} /> :
+                                <Cloud size={12} />}
                         {saveStatus || 'Unsaved'}
                     </div>
-                    <div className="h-4 w-px bg-gray-700 hidden sm:block"></div>
-                    <div className="hidden sm:flex items-center gap-2 text-gray-500">
-                        <Clock size={16} />
-                        <span>
-                            Last edited {new Date(note.updatedAt).toLocaleDateString()} at {new Date(note.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                    </div>
+                    <button className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-md transition">
+                        <MoreHorizontal size={18} />
+                    </button>
                 </div>
-            </nav>
+            </header>
 
-            {/* --- Main Editor Area --- */}
-            <main className="flex-1 overflow-y-auto relative z-20 custom-scrollbar">
-                <div className="max-w-5xl mx-auto border-x border-gray-800 min-h-full bg-gray-900/40 flex flex-col shadow-2xl shadow-black/20">
-                    
-                    {/* Title Section */}
-                    <div className="px-12 pt-12 pb-6">
-                        <input
-                            type="text"
-                            name="title"
-                            value={note.title}
-                            onChange={handleTitleChange}
-                            className="w-full bg-transparent text-5xl font-bold text-white placeholder-gray-600 outline-none border-none p-0 focus:ring-0"
-                            placeholder="Untitled Note"
-                        />
-                    </div>
+            {/* --- Main Content --- */}
+            <main className="flex-1 relative w-full max-w-4xl mx-auto px-6 md:px-12 py-12">
 
-                    {/* Sticky Toolbar within the document container */}
-                    <div className="sticky top-0 z-40 px-12 py-4 bg-gray-900/95 backdrop-blur-xl border-y border-gray-800 transition-all">
+                {/* Sticky Toolbar (Floating Pill) */}
+                <div className="sticky top-20 z-40 mb-12 flex justify-center pointer-events-none">
+                    <div className="pointer-events-auto bg-gray-800/90 backdrop-blur-xl border border-gray-700 rounded-full shadow-2xl shadow-black/50 px-6 py-2 flex items-center justify-center gap-2 transition-all hover:border-gray-600">
                         <Toolbar editor={editorInstance} />
                     </div>
+                </div>
+
+                {/* Document Area */}
+                <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                    {/* Title Input */}
+                    <input
+                        type="text"
+                        name="title"
+                        value={note.title}
+                        onChange={handleTitleChange}
+                        // I added 'caret-white' to the end of this className string below
+                        className="w-full bg-transparent text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-white placeholder-gray-700 outline-none border-none p-0 focus:ring-0 leading-tight caret-white"
+                        placeholder="Untitled"
+                    />
+
+                    {/* Metadata */}
+                    <div className="flex items-center gap-3 text-gray-500 text-sm mb-8">
+                        <span className="flex items-center gap-1.5">
+                            <Clock size={14} />
+                            {new Date(note.updatedAt).toLocaleDateString()}
+                        </span>
+                        <span>•</span>
+                        <span>{note.content ? note.content.split(' ').length : 0} words</span>
+                    </div>
+
+                    <div className='border-t border-gray-700'></div>
 
                     {/* Editor */}
-                    <div className="px-12 py-8 flex-1">
+                    <div className="min-h-[50vh] pb-32">
                         <TiptapEditor
                             content={note.content}
                             onChange={handleContentChange}
                             onEditorReady={setEditorInstance}
                         />
                     </div>
-                    
-                    {/* Bottom Spacer */}
-                    <div className="h-20"></div>
                 </div>
+
             </main>
+
+            {/* Original Background Gradients (moved inside the new wrapper) */}
+            <div className="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/20 rounded-full blur-[120px] opacity-40"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/20 rounded-full blur-[120px] opacity-40"></div>
+            </div>
         </div>
     );
 };
