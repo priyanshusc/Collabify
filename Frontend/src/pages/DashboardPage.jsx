@@ -38,14 +38,14 @@ const NoteCard = ({
   <div
     key={note._id}
     style={{ backgroundColor: note.color }}
-    className="group backdrop-blur-sm border border-white/5 p-6 rounded-2xl hover:shadow-xl transition-all duration-300 relative cursor-pointer flex flex-col h-64"
+    className="group backdrop-blur-sm border border-white/5 p-4 md:p-6 rounded-2xl hover:shadow-xl transition-all duration-300 relative cursor-pointer flex flex-col h-64"
     onClick={() => !isBin && onSelect(note._id)}
   >
     {/* Content Wrapper */}
     <div className="flex-1 overflow-hidden">
-      <h3 className="font-bold text-xl text-white mb-3 truncate">{note.title}</h3>
+      <h3 className="font-bold text-lg md:text-xl text-white mb-2 md:mb-3 truncate">{note.title}</h3>
       <div
-        className="text-gray-200 text-sm mb-4 h-[calc(100%-3rem)] overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1 leading-relaxed"
+        className="text-gray-200 text-xs md:text-sm mb-4 h-[calc(100%-3rem)] overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1 leading-relaxed"
         dangerouslySetInnerHTML={{ __html: note.content || '<span class="italic opacity-50">No content yet...</span>' }}
       />
     </div>
@@ -80,10 +80,10 @@ const NoteCard = ({
     ) : (
       /* Standard Actions (Hover Toolbar) */
       <>
-        {/* Delete button (Quick Action) */}
+        {/* Delete button (Quick Action) - Hidden on mobile until long press/hover logic is handled, or rely on menu */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(note._id); }}
-          className="absolute top-4 right-4 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity z-10 p-1 rounded-md hover:bg-black/10"
+          className="absolute top-4 right-4 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity z-10 p-1 rounded-md hover:bg-black/10 hidden md:block"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
@@ -93,7 +93,7 @@ const NoteCard = ({
         {/* Toolbar */}
         <div
             className={`absolute bottom-4 right-4 flex items-center justify-between transition-all duration-300 ${
-              (menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-0  group-hover:opacity-100'
+              (menuState.isOpen && menuState.noteId === note._id) ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
             }`}
           >
             <div className="flex gap-1">
@@ -132,7 +132,8 @@ const NoteCard = ({
 );
 
 const DashboardPage = () => {
-  const { isSidebarOpen } = useOutletContext();
+  // Retrieve closeSidebar to handle mobile backdrop clicks
+  const { isSidebarOpen, closeSidebar } = useOutletContext();
   const { auth } = useContext(AuthContext);
 
   const [notes, setNotes] = useState([]);
@@ -520,13 +521,27 @@ const DashboardPage = () => {
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600 rounded-full filter blur-[120px] opacity-10 -translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600 rounded-full filter blur-[120px] opacity-10 translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
 
-        {/* Sidebar */}
+        {/* Mobile Sidebar Backdrop */}
+        {isSidebarOpen && (
+           <div 
+             className="fixed inset-0 bg-black/60 z-20 md:hidden backdrop-blur-sm transition-opacity"
+             onClick={closeSidebar}
+           />
+        )}
+
+        {/* Sidebar - Responsive */}
         <aside
-          className={`z-20 bg-gray-900 border-r border-gray-700 flex-shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64 p-5' : 'w-20 py-5'}`}
+          className={`
+            z-30 bg-gray-900 border-r border-gray-700 flex-shrink-0 transition-all duration-300 ease-in-out
+            ${isSidebarOpen ? 'w-64' : 'w-0 md:w-20'} 
+            ${isSidebarOpen ? 'absolute h-full shadow-2xl md:static md:shadow-none' : 'static'}
+            ${isSidebarOpen ? 'p-5' : 'p-0 md:py-5'}
+            overflow-hidden
+          `}
         >
-          <nav className="space-y-2">
+          <nav className={`space-y-2 ${!isSidebarOpen && 'md:px-2'}`}>
             <button
-              onClick={() => setView('notes')}
+              onClick={() => { setView('notes'); if(window.innerWidth < 768) closeSidebar(); }}
               className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
                 ? `rounded-xl ${view === 'notes' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
                 : `rounded-full justify-center ${view === 'notes' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
@@ -540,7 +555,7 @@ const DashboardPage = () => {
             </button>
 
             <button
-              onClick={() => setView('favorites')}
+              onClick={() => { setView('favorites'); if(window.innerWidth < 768) closeSidebar(); }}
               className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
                 ? `rounded-xl ${view === 'favorites' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
                 : `rounded-full justify-center ${view === 'favorites' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
@@ -551,7 +566,7 @@ const DashboardPage = () => {
             </button>
 
             <button
-              onClick={() => setView('archive')}
+              onClick={() => { setView('archive'); if(window.innerWidth < 768) closeSidebar(); }}
               className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
                 ? `rounded-xl ${view === 'archive' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
                 : `rounded-full justify-center ${view === 'archive' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
@@ -562,7 +577,7 @@ const DashboardPage = () => {
             </button>
 
             <button
-              onClick={() => setView('bin')}
+              onClick={() => { setView('bin'); if(window.innerWidth < 768) closeSidebar(); }}
               className={`w-full flex items-center py-3 h-12 text-white font-medium transition-all duration-200 ${isSidebarOpen
                 ? `rounded-xl ${view === 'bin' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
                 : `rounded-full justify-center ${view === 'bin' ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'hover:bg-gray-800 text-gray-400 hover:text-white'}`
@@ -579,7 +594,7 @@ const DashboardPage = () => {
               {allLabels.map(label => (
                 <button
                   key={label}
-                  onClick={() => setView(label)}
+                  onClick={() => { setView(label); if(window.innerWidth < 768) closeSidebar(); }}
                   className={`w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${view === label ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}
                 >
                   <span className="text-blue-500">#</span> {label}
@@ -589,12 +604,12 @@ const DashboardPage = () => {
           </div>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 w-full overflow-y-auto p-8 z-10 relative">
+        {/* Main Content - Responsive Padding */}
+        <main className="flex-1 w-full overflow-y-auto p-4 md:p-8 z-10 relative">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-10 gap-6">
               <div>
-                <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
+                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">
                   {pageTitle}
                 </h1>
                  <p className="text-gray-400 text-sm">
@@ -603,16 +618,16 @@ const DashboardPage = () => {
               </div>
               
               {view === 'notes' && (
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  {/* Updated Search Bar */}
-                  <div className="relative flex-1 md:flex-none md:w-80">
+                <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
+                  {/* Updated Search Bar - Full Width on Mobile */}
+                  <div className="relative flex-1 md:flex-none w-full md:w-80">
                     <input
                       ref={searchInputRef}
                       type="text"
                       placeholder="Search notes..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-500 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition shadow-sm"
+                      className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-500 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition shadow-sm text-sm md:text-base"
                     />
                     <svg
                       className="w-5 h-5 text-gray-500 absolute top-1/2 left-3 -translate-y-1/2"
@@ -625,10 +640,10 @@ const DashboardPage = () => {
                     </svg>
                   </div>
 
-                  {/* Updated Create Button */}
+                  {/* Updated Create Button - Icon only on mobile */}
                   <button
                     onClick={handleCreateNote}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition duration-300 transform hover:scale-105 active:scale-95"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 md:px-6 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition duration-300 transform hover:scale-105 active:scale-95 shrink-0"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path
@@ -643,10 +658,10 @@ const DashboardPage = () => {
               )}
             </div>
 
-            {/* Notes Grid */}
+            {/* Notes Grid - Fully Responsive */}
             {view === 'bin' ? (
               notes.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {notes.map((note) => (
                      <NoteCard
                         key={note._id}
@@ -679,7 +694,7 @@ const DashboardPage = () => {
                 return favoritedUnarchived.length > 0 || favoritedArchived.length > 0 ? (
                   <div>
                     {favoritedUnarchived.length > 0 && (
-                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 mb-12">
                           {favoritedUnarchived.map((note) => (
                             <NoteCard
                               key={note._id}
@@ -706,7 +721,7 @@ const DashboardPage = () => {
                             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Archived Favorites</span>
                             <div className="h-px flex-1 bg-gray-700"></div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                           {favoritedArchived.map((note) => (
                              <NoteCard
                                 key={note._id}
@@ -738,7 +753,7 @@ const DashboardPage = () => {
             ) : (
               // Default View
               filteredNotes.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {filteredNotes.map((note) => (
                     <NoteCard
                         key={note._id}
@@ -757,14 +772,14 @@ const DashboardPage = () => {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center mt-28 text-center">
+                <div className="flex flex-col items-center justify-center mt-28 text-center px-4">
                   <div onClick={handleCreateNote} className="bg-gray-800 cursor-pointer p-6 rounded-full mb-6 transition duration-300 hover:bg-gray-700">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                      </svg>
                   </div>
                   <h2 className="text-2xl font-bold text-white mb-2">Create your first note</h2>
-                  <p className="text-gray-400 max-w-md mb-8">
+                  <p className="text-gray-400 max-w-md mb-8 text-sm md:text-base">
                     Capture ideas, lists, and projects. Organize them with colors and labels.
                   </p>
                 </div>
