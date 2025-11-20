@@ -38,14 +38,15 @@ const NoteCard = ({
   <div
     key={note._id}
     style={{ backgroundColor: note.color }}
-    className="group backdrop-blur-sm border border-white/5 p-4 md:p-6 rounded-2xl hover:shadow-xl transition-all duration-300 relative cursor-pointer flex flex-col h-64"
+    className="group backdrop-blur-sm border border-white/5 p-3 md:p-4 rounded-2xl hover:shadow-xl transition-all duration-300 relative cursor-pointer flex flex-col h-64"
     onClick={() => !isBin && onSelect(note._id)}
   >
     {/* Content Wrapper */}
     <div className="flex-1 overflow-hidden">
       <h3 className="font-bold text-lg md:text-xl text-white mb-2 md:mb-3 truncate">{note.title}</h3>
       <div
-        className="text-gray-200 text-xs md:text-sm mb-4 h-[calc(100%-3rem)] overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1 leading-relaxed"
+        // 👉 Added [&_li::marker]:text-white to force bullet points to be white
+        className="text-gray-200 text-xs md:text-sm mb-4 h-[calc(100%-3rem)] overflow-hidden prose prose-invert prose-p:my-0 prose-headings:my-1 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 [&_li::marker]:text-white leading-relaxed"
         dangerouslySetInnerHTML={{ __html: note.content || '<span class="italic opacity-50">No content yet...</span>' }}
       />
     </div>
